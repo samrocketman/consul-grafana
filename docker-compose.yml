@@ -16,8 +16,6 @@ services:
     init: true
     expose:
       - 3000/tcp
-    ports:
-      - 3000:3000
     networks:
       - internal
       - consul-network
