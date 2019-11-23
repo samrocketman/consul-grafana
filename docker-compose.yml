@@ -1,0 +1,50 @@
+version: '2.2'
+
+networks:
+  internal:
+    driver: bridge
+  consul-network:
+    external:
+      name: docker-compose-ha-consul-vault-ui_internal
+
+volumes:
+  grafana-storage:
+
+services:
+  grafana:
+    image: 'grafana/grafana'
+    init: true
+    expose:
+      - 3000/tcp
+    ports:
+      - 3000:3000
+    networks:
+      - internal
+      - consul-network
+    volumes:
+      - 'grafana-storage:/var/lib/grafana'
+      - ${HOME}/git/github/docker-compose-ha-consul-vault-ui/consul:/usr/local/bin/consul
+      - ${HOME}/git/github/docker-compose-ha-consul-vault-ui/jq:/usr/local/bin/jq
+      - ${HOME}/git/github/docker-compose-ha-consul-vault-ui/scripts/consul-agent.sh:/bin/consul-agent.sh
+    dns:
+      - 172.16.238.2
+      - 172.16.238.3
+    user: root
+    entrypoint: ''
+    command:
+      - /bin/sh
+      - -c
+      - |
+        # start consul agent and grafana
+        set -ex
+        type unzip || (
+          until apt-get update; do sleep 3; done
+          until apt-get -y --no-install-recommends install unzip curl ca-certificates procps less vim; do sleep 3; done
+        )
+        IP="$$(awk '/32 host/ && f ~ /172.16.238/ { print f; exit }; {f=$$2}' /proc/net/fib_trie)"
+        consul-agent.sh --consul-host consul.service.consul --advertise "$$IP" --service '{"service": {"name": "grafana", "tags": ["portal"], "port": 3000, "meta": {"title": "Grafana", "description": "A service for metric analytics and visualization of data into dashboards."}}}'
+        sed -i.bak -re 's#^;domain.*#domain = grafana.service.consul#' /etc/grafana/grafana.ini
+        sed -i.bak -re 's#^;root_url.*#root_url = %(protocol)s://%(domain)s/grafana#' /etc/grafana/grafana.ini
+        sed -i.bak -re 's#^;serve_from_sub_path.*#serve_from_sub_path = true#' /etc/grafana/grafana.ini
+        env | awk '/GF_|PATH/ { print "export \""$$0"\"" }' > /tmp/environ.sh
+        exec su -s /bin/sh -c "set -ex; . /tmp/environ.sh; exec /run.sh" - grafana
