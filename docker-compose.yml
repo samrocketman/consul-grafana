@@ -12,7 +12,7 @@ volumes:
 
 services:
   grafana:
-    image: 'grafana/grafana'
+    image: 'grafana/grafana:latest-ubuntu'
     init: true
     expose:
       - 3000/tcp
@@ -35,7 +35,7 @@ services:
       - |
         # start consul agent and grafana
         set -ex
-        type unzip || (
+        type unzip && type curl || (
           until apt-get update; do sleep 3; done
           until apt-get -y --no-install-recommends install unzip curl ca-certificates procps less vim; do sleep 3; done
         )
